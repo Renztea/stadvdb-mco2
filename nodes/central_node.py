@@ -22,7 +22,7 @@ def node_update(hostname, data, num):
 
     print("> Updating Node %i...", num)
     for record in data:
-        node_cur.execute("INSERT IGNORE INTO movies (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
+        node_cur.execute("INSERT IGNORE INTO movies_200 (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
         i += 1
         print("Node %i: %i/%i" % (num, i, total))
 
@@ -73,7 +73,7 @@ def check_db_size():
 def update_nodes():
     print("> Update starting...")
     central_node = connector.connect(
-        host="34.142.158.246",
+        host=local_ip,
         port=3306,
         user="root",
         password="root",
@@ -129,4 +129,11 @@ def send_query():
 
     cur.close()
 
-    return render_template('result.html')
+    update_nodes()
+
+    return render_template('index.html')
+
+
+@app.route("/see_results")
+def see_results():
+    return render_template("result.html")

@@ -59,7 +59,7 @@ def index():
 @app.route("/check_db_size")
 def check_db_size():
     cur = local_conn.connection.cursor()
-    cur.execute("SELECT COUNT(*) FROM movies")
+    cur.execute("SELECT COUNT(*) FROM movies_200")
     results = cur.fetchall()
 
     print(results)
@@ -72,36 +72,28 @@ def check_db_size():
 @app.route("/update_nodes")
 def update_nodes():
     print("> Update starting...")
-    central_node = connector.connect(
-        host="34.142.158.246",
+    node3_conn = connector.connect(
+        host=local_ip,
         port=3306,
         user="root",
         password="root",
         db="mco2_imdb_ijs",
     )
 
-    central_node_cur = central_node.cursor()
+    node3_cur = node3_conn.cursor()
 
     # Data for Node 2
-    print("> Fetching data for Node 2...")
-    central_node_cur.execute("SELECT * FROM movies WHERE year < 1980")
-    data_before1980 = central_node_cur.fetchall()
+    print("> Fetching data for Central Node...")
+    node3_cur.execute("SELECT * FROM movies_200")
+    data_1980onwards = node3_cur.fetchall()
 
-    # Data for Node 3
-    print("> Fetching data for Node 3...")
-    central_node_cur.execute("SELECT * FROM movies WHERE year >= 1980")
-    data_1980onwards = central_node_cur.fetchall()
+    node3_cur.close()
+    node3_conn.close()
 
-    central_node_cur.close()
-    central_node.close()
+    central_node_thread = threading.Thread(target=node_update, args=("34.142.158.246", data_1980onwards, 1))
 
-    node2_thread = threading.Thread(target=node_update, args=("35.247.134.226", data_before1980, 2))
-    node3_thread = threading.Thread(target=node_update, args=("35.247.162.62", data_1980onwards, 3))
-
-    node2_thread.start()
-    node3_thread.start()
-    node2_thread.join()
-    node3_thread.join()
+    central_node_thread.start()
+    central_node_thread.join()
 
     return render_template('index.html')
 
@@ -119,14 +111,20 @@ def send_query():
             cur.execute(query)
             result = cur.fetchall()
 
-            if len(result) > 0:
-                result_html = pd.DataFrame(result).to_html()
-                fp = open("templates/result.html", "w")
-                fp.write(result_html)
-                fp.close()
+            result_html = pd.DataFrame(result).to_html()
+            fp = open("templates/result.html", "w")
+            fp.write(result_html)
+            fp.close()
 
     local_conn.connection.commit()
 
     cur.close()
 
-    return render_template('result.html')
+    update_nodes()
+
+    return render_template('index.html')
+
+
+@app.route("/see_results")
+def see_results():
+    return render_template("result.html")

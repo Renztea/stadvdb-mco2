@@ -7,10 +7,11 @@
 <body>
     <a href="/check_db_size">> Check DB Size</a>   <br>
     <a href="/update_nodes">> Update Nodes</a> <br>
+    <a href="/see_results">> See Results</a> <br>
 
     <form action="/send_query" method="POST">
         <p><label for="query">SQL Statement:</label></p>
-        <textarea id="query" name="input_query" rows="4" cols="50" placeholder="<Insert SQL statement here>"></textarea>
+        <textarea id="query" name="input_query" rows="40" cols="100" placeholder="<Insert SQL statement here>"></textarea>
         <br>
         <input type="submit" value="Send Query">
     </form>
