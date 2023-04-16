@@ -110,20 +110,20 @@ def send_query():
             print("> " + query)
             cur.execute(query)
             result = cur.fetchall()
-
-            if len(result) > 0:
-                result_html = pd.DataFrame(result).to_html()
-                fp = open("templates/result.html", "w")
-                fp.write(result_html)
-                fp.close()
+            result_html = pd.DataFrame(result).to_html()
+            fp = open("templates/result.html", "w")
+            fp.write(result_html)
+            fp.close()
 
     local_conn.connection.commit()
 
     cur.close()
 
+    print("> Transaction finished.")
+
     update_nodes()
 
-    return render_template('index.html')
+    return render_template('result.html')
 
 
 @app.route("/see_results")

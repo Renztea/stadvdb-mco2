@@ -120,9 +120,11 @@ def send_query():
 
     cur.close()
 
+    print("> Transaction finished.")
+
     update_nodes()
 
-    return render_template('index.html')
+    return render_template('result.html')
 
 
 @app.route("/see_results")
