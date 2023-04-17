@@ -13,7 +13,7 @@ def node_update(hostname, data, num):
         port=3306,
         user="root",
         password="root",
-        db="mco2_imdb_ijs",
+        db="mco2",
     )
     node_cur = node_conn.cursor()
 
@@ -22,7 +22,7 @@ def node_update(hostname, data, num):
 
     print("> Updating Node %i...", num)
     for record in data:
-        node_cur.execute("INSERT IGNORE INTO movies_200 (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
+        node_cur.execute("INSERT IGNORE INTO movies (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
         i += 1
         print("Node %i: %i/%i" % (num, i, total))
 
@@ -44,7 +44,7 @@ app.config['MYSQL_HOST'] = local_ip
 app.config['MYSQL_PORT'] = 3306
 app.config['MYSQL_USER'] = "root"
 app.config['MYSQL_PASSWORD'] = "root"
-app.config['MYSQL_DB'] = "mco2_imdb_ijs"
+app.config['MYSQL_DB'] = "mco2"
 
 # Central Node
 local_conn.init_app(app)
@@ -77,7 +77,7 @@ def update_nodes():
         port=3306,
         user="root",
         password="root",
-        db="mco2_imdb_ijs",
+        db="mco2",
     )
 
     central_node_cur = central_node.cursor()
@@ -95,7 +95,7 @@ def update_nodes():
     central_node_cur.close()
     central_node.close()
 
-    node2_thread = threading.Thread(target=node_update, args=("35.247.134.226", data_before1980, 2))
+    node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
     node3_thread = threading.Thread(target=node_update, args=("35.247.162.62", data_1980onwards, 3))
 
     node2_thread.start()

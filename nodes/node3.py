@@ -13,7 +13,7 @@ def node_update(hostname, data, num):
         port=3306,
         user="root",
         password="root",
-        db="mco2_imdb_ijs",
+        db="mco2",
     )
     node_cur = node_conn.cursor()
 
@@ -24,7 +24,7 @@ def node_update(hostname, data, num):
     for record in data:
         node_cur.execute("INSERT IGNORE INTO movies (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
         i += 1
-        print("Node %i: %i/%i" % num, i, total)
+        print("Node %i: %i/%i" % (num, i, total))
 
     node_conn.commit()
 
@@ -44,7 +44,7 @@ app.config['MYSQL_HOST'] = local_ip
 app.config['MYSQL_PORT'] = 3306
 app.config['MYSQL_USER'] = "root"
 app.config['MYSQL_PASSWORD'] = "root"
-app.config['MYSQL_DB'] = "mco2_imdb_ijs"
+app.config['MYSQL_DB'] = "mco2"
 
 # Central Node
 local_conn.init_app(app)
@@ -59,7 +59,7 @@ def index():
 @app.route("/check_db_size")
 def check_db_size():
     cur = local_conn.connection.cursor()
-    cur.execute("SELECT COUNT(*) FROM movies_200")
+    cur.execute("SELECT COUNT(*) FROM movies")
     results = cur.fetchall()
 
     print(results)
@@ -77,14 +77,14 @@ def update_nodes():
         port=3306,
         user="root",
         password="root",
-        db="mco2_imdb_ijs",
+        db="mco2",
     )
 
     node3_cur = node3_conn.cursor()
 
     # Data for Node 2
     print("> Fetching data for Central Node...")
-    node3_cur.execute("SELECT * FROM movies_200")
+    node3_cur.execute("SELECT * FROM movies")
     data_1980onwards = node3_cur.fetchall()
 
     node3_cur.close()
