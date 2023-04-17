@@ -2,6 +2,8 @@ from flask import Flask
 from flask import render_template
 from flask_mysqldb import MySQL
 from flask import request
+from flask import redirect
+from flask import url_for
 import pandas as pd
 import mysql.connector as connector
 import threading
@@ -20,20 +22,34 @@ def node_update(hostname, data, num):
     total = len(data)
     i = 0
 
-    print("> Updating Node %i...", num)
+    print("> Updating Node %i..." % num)
     for record in data:
-        node_cur.execute("INSERT IGNORE INTO movies (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
+        node_cur.execute("SELECT IF(EXISTS(SELECT `id` FROM movies WHERE `id`=%s)=1, 1, 0)", [record[0]])
+        exists = node_cur.fetchall()
+        if exists[0][0] == 1:
+            # print("Updating record ID[" + str(record[0]) + "]...")
+            node_cur.execute("UPDATE movies SET `id`=%s,`name`=%s,`year`=%s,`rank`=%s WHERE `id`=%s", (record[0], record[1], record[2], record[3], record[0]))
+        elif exists[0][0] == 0:
+            print("Adding new record: " + str(record) + "...")
+            node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
+
         i += 1
         print("Node %i: %i/%i" % (num, i, total))
 
     node_conn.commit()
 
+    # for record in data:
+    #     print("INSERT INTO movies VALUES (" + str(record[0]) + ", '" + record[1] + "', " + str(record[2]) + ", " + str(record[3]) + ")")
+    #     node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
+    #     node_conn.commit()
+
     node_cur.close()
     node_conn.close()
-    print("> Node %i done updating.", num)
+    print("> Node %i done updating." % num)
     return
 
 
+# VARIABLES
 # IP address specifically for this node
 local_ip = "34.142.158.246"
 
@@ -63,9 +79,7 @@ def check_db_size():
     results = cur.fetchall()
 
     print(results)
-
     cur.close()
-
     return render_template('index.html')
 
 
@@ -103,11 +117,12 @@ def update_nodes():
     node2_thread.join()
     node3_thread.join()
 
-    return render_template('index.html')
+    return redirect(url_for('index'))
 
 
 @app.route("/send_query", methods=['POST'])
 def send_query():
+    update_flag = False
     cur = local_conn.connection.cursor()
 
     data = request.form['input_query']
@@ -116,23 +131,30 @@ def send_query():
     for query in data:
         if query != "":
             print("> " + query)
+
+            if (query[0:6].upper() != "SELECT") and not update_flag:
+                update_flag = True
+
             cur.execute(query)
             result = cur.fetchall()
 
-            result_html = pd.DataFrame(result).to_html()
+            # result.html clears for each SQL statement sent
             fp = open("templates/result.html", "w")
-            fp.write(result_html)
+
+            if len(result) > 0:
+                result_html = pd.DataFrame(result).to_html()
+                fp.write(str(result_html))
+
             fp.close()
 
     local_conn.connection.commit()
-
     cur.close()
-
     print("> Transaction finished.")
 
-    update_nodes()
+    if update_flag:
+        update_nodes()
 
-    return render_template('result.html')
+    return redirect(url_for("see_results"))
 
 
 @app.route("/see_results")

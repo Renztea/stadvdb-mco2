@@ -2,6 +2,8 @@ from flask import Flask
 from flask import render_template
 from flask_mysqldb import MySQL
 from flask import request
+from flask import redirect
+from flask import url_for
 import pandas as pd
 import mysql.connector as connector
 import threading
@@ -63,9 +65,7 @@ def check_db_size():
     results = cur.fetchall()
 
     print(results)
-
     cur.close()
-
     return render_template('index.html')
 
 
@@ -87,19 +87,33 @@ def update_nodes():
     node3_cur.execute("SELECT * FROM movies")
     data_1980onwards = node3_cur.fetchall()
 
+    # Data for Node 2
+    print("> Fetching data for Node 2...")
+    node3_cur.execute("SELECT * FROM movies WHERE year < 1980")
+    data_before1980 = node3_cur.fetchall()
+
+    # Maintain list of movies with `year` >= 1980
+    print("> Deleting records with year < 1980")
+    node3_cur.execute("DELETE FROM movies WHERE year < 1980")
+    print(node3_cur.fetchall())
+
     node3_cur.close()
     node3_conn.close()
 
     central_node_thread = threading.Thread(target=node_update, args=("34.142.158.246", data_1980onwards, 1))
+    node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
 
     central_node_thread.start()
+    node2_thread.start()
     central_node_thread.join()
+    node2_thread.join()
 
     return render_template('index.html')
 
 
 @app.route("/send_query", methods=['POST'])
 def send_query():
+    update_flag = False
     cur = local_conn.connection.cursor()
 
     data = request.form['input_query']
@@ -108,23 +122,30 @@ def send_query():
     for query in data:
         if query != "":
             print("> " + query)
+
+            if (query[0:6].upper() != "SELECT") and not update_flag:
+                update_flag = True
+
             cur.execute(query)
             result = cur.fetchall()
 
-            result_html = pd.DataFrame(result).to_html()
+            # result.html clears for each SQL statement sent
             fp = open("templates/result.html", "w")
-            fp.write(result_html)
+
+            if len(result) > 0:
+                result_html = pd.DataFrame(result).to_html()
+                fp.write(str(result_html))
+
             fp.close()
 
     local_conn.connection.commit()
-
     cur.close()
-
     print("> Transaction finished.")
 
-    update_nodes()
+    if update_flag:
+        update_nodes()
 
-    return render_template('result.html')
+    return redirect(url_for("see_results"))
 
 
 @app.route("/see_results")
