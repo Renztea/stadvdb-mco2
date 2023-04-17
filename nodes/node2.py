@@ -111,6 +111,8 @@ def update_nodes():
     node2_cur.execute("DELETE FROM movies WHERE year >= 1980")
     print(node2_cur.fetchall())
 
+    node2_conn.commit()
+
     node2_cur.close()
     node2_conn.close()
 
