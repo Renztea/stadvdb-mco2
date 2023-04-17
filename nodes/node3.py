@@ -32,7 +32,7 @@ def node_update(hostname, data, num):
 
     node_cur.close()
     node_conn.close()
-    print("> Node %i done updating.", num)
+    print("> Node %i done updating." % num)
     return
 
 
