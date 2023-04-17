@@ -102,22 +102,36 @@ def update_nodes():
 def send_query():
     cur = local_conn.connection.cursor()
 
+    #Connection to Central Node DB
+    c_conn = connector.connect (
+        host="34.142.158.246",
+        port=3306,
+        user="root",
+        password="root",
+        database="mco2"
+    )
+    center_cur = c_conn.cursor()
+
     data = request.form['input_query']
     data = data.split(";")
 
     for query in data:
         if query != "":
             print("> " + query)
+            center_cur.execute(query)
             cur.execute(query)
             result = cur.fetchall()
+            print(result)
             result_html = pd.DataFrame(result).to_html()
             fp = open("templates/result.html", "w")
             fp.write(result_html)
             fp.close()
 
     local_conn.connection.commit()
+    c_conn.commit()
 
     cur.close()
+    center_cur.close()
 
     print("> Transaction finished.")
 
