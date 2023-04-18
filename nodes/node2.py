@@ -219,7 +219,7 @@ def send_query():
                 query[0:5].upper() != "START" and
                 query[0:6].upper() != "COMMIT" and
                 query[0:5].upper() != "BEGIN"
-            ) and update_flag:
+            ) and not update_flag:
                 update_flag = True
 
             if query[0:3].upper() == "SET":

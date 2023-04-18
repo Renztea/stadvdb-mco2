@@ -206,7 +206,7 @@ def send_query():
                 query[0:5].upper() != "START" and
                 query[0:6].upper() != "COMMIT" and
                 query[0:5].upper() != "BEGIN"
-            ) and update_flag:
+            ) and not update_flag:
                 update_flag = True
 
             if query[0:3].upper() == "SET":
@@ -224,7 +224,7 @@ def send_query():
                 cur.execute(query)
             except:
                 print("> Query unsuccessful")
-                cur.execute("ROLLBACK") 
+                cur.execute("ROLLBACK")
                 return redirect(url_for("index"))
             else:
                 flag_executed_query()
