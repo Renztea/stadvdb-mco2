@@ -152,8 +152,6 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# Result dataframe HTML
-nodes/templates/result.html
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
@@ -161,3 +159,5 @@ nodes/templates/result.html
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+# Result dataframe HTML
+nodes/templates/result.html
