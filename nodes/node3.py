@@ -244,7 +244,9 @@ def send_query():
 
             if len(result) != 0:
                 fp = open("templates/result.html", "w")
-                result_html = pd.DataFrame(result).to_html()
+                df = pd.DataFrame(result)
+                df.columns = ['id', 'name', 'year', 'rank']
+                result_html = df.to_html(col_space="50px", index=False, justify="center")
                 fp.write(str(result_html))
                 fp.close()
 
