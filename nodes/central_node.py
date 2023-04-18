@@ -224,6 +224,7 @@ def send_query():
                 cur.execute(query)
             except:
                 print("> Query unsuccessful")
+                cur.execute("ROLLBACK") 
                 return redirect(url_for("index"))
             else:
                 flag_executed_query()
