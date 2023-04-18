@@ -43,7 +43,7 @@ def log(event, desc):
     return
 
 
-def flag_executed():
+def flag_executed_query():
     log_conn = connector.connect(
         host=local_ip,
         port=3306,
@@ -76,9 +76,33 @@ def node_update(hostname, data, num):
     total = len(data)
     i = 0
 
-    print("> Updating Node %i...", num)
+    print("> Updating Node %i..." % num)
     for record in data:
-        node_cur.execute("INSERT IGNORE INTO movies (`id`, `name`, `year`, `rank`) VALUES (%s, %s, %s, %s)", record)
+        node_cur.execute("SELECT IF(EXISTS(SELECT `id` FROM movies WHERE `id`=%s)=1, 1, 0)", [record[0]])
+        exists = node_cur.fetchall()
+        node_cur.execute("START TRANSACTION")
+        if exists[0][0] == 1:
+            # print("Updating record ID[" + str(record[0]) + "]...")
+            try:
+                node_cur.execute("UPDATE movies SET `id`=%s,`name`=%s,`year`=%s,`rank`=%s WHERE `id`=%s",
+                                 (record[0], record[1], record[2], record[3], record[0]))
+            except:
+                log("UPDATE ERROR", "Could not execute UPDATE statement")
+                node_cur.execute("ROLLBACK")
+                print("> Update unsuccessful")
+                return
+
+        elif exists[0][0] == 0:
+            print("Adding new record: " + str(record) + "...")
+
+            try:
+                node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
+            except:
+                log("UPDATE ERROR", "Could not execute INSERT statement")
+                node_cur.execute("ROLLBACK")
+                print("> Update unsuccessful")
+                return
+
         i += 1
         print("Node %i: %i/%i" % (num, i, total))
 
@@ -120,34 +144,56 @@ def update_nodes():
 
     node3_cur = node3_conn.cursor()
 
-    # Data for Node 2
-    print("> Fetching data for Central Node...")
-    node3_cur.execute("SELECT * FROM movies")
-    data_1980onwards = node3_cur.fetchall()
+    try:
+        # Data for Central Node
+        print("> Fetching data for Central Node...")
+        node3_cur.execute("SELECT * FROM movies")
+    except:
+        log("UPDATE ERROR", "Error occurred during update")
+        print("> Update unsuccessful")
+        return redirect(url_for("index"))
+    else:
+        data_1980onwards = node3_cur.fetchall()
 
-    # Data for Node 2
-    print("> Fetching data for Node 2...")
-    node3_cur.execute("SELECT * FROM movies WHERE year < 1980")
-    data_before1980 = node3_cur.fetchall()
+    try:
+        # Data for Node 2
+        print("> Fetching data for Node 2...")
+        node3_cur.execute("SELECT * FROM movies WHERE year < 1980")
+    except:
+        log("UPDATE ERROR", "Error occurred during update")
+        print("> Update unsuccessful")
+        return redirect(url_for("index"))
+    else:
+        data_before1980 = node3_cur.fetchall()
 
-    # Maintain list of movies with `year` >= 1980
-    print("> Deleting records with year < 1980")
-    node3_cur.execute("DELETE FROM movies WHERE year < 1980")
-    print(node3_cur.fetchall())
+    try:
+        # Maintain list of movies with `year` >= 1980
+        node3_cur.execute("START TRANSACTION")
+        print("> Deleting records with year < 1980")
+        node3_cur.execute("DELETE FROM movies WHERE year < 1980")
+    except:
+        log("UPDATE ERROR", "Error occurred during update")
+        print("> Update unsuccessful")
+        node3_cur.execute("ROLLBACK")
+        return redirect(url_for("index"))
+    else:
+        print(node3_cur.fetchall())
+        node3_cur.execute("COMMIT")
+        node3_conn.commit()
 
-    node3_conn.commit()
+        node3_cur.close()
+        node3_conn.close()
 
-    node3_cur.close()
-    node3_conn.close()
+        central_node_thread = threading.Thread(target=node_update, args=("34.142.158.246", data_1980onwards, 1))
+        node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
 
-    central_node_thread = threading.Thread(target=node_update, args=("34.142.158.246", data_1980onwards, 1))
-    node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
+        central_node_thread.start()
+        node2_thread.start()
+        central_node_thread.join()
+        node2_thread.join()
 
-    central_node_thread.start()
-    node2_thread.start()
-    central_node_thread.join()
-    node2_thread.join()
-
+    log("UPDATE SUCCESSFUL", "End of update process")
+    flag_executed_query()
     return render_template('index.html')
 
 
@@ -193,7 +239,7 @@ def send_query():
                 print("> Query unsuccessful")
                 return redirect(url_for("index"))
             else:
-                flag_executed()
+                flag_executed_query()
                 result = cur.fetchall()
 
             if len(result) != 0:

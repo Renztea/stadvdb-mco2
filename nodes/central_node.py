@@ -44,7 +44,7 @@ def log(event, desc):
     return
 
 
-def flag_executed():
+def flag_executed_query():
     log_conn = connector.connect(
         host=local_ip,
         port=3306,
@@ -81,12 +81,29 @@ def node_update(hostname, data, num):
     for record in data:
         node_cur.execute("SELECT IF(EXISTS(SELECT `id` FROM movies WHERE `id`=%s)=1, 1, 0)", [record[0]])
         exists = node_cur.fetchall()
+        node_cur.execute("START TRANSACTION")
         if exists[0][0] == 1:
             # print("Updating record ID[" + str(record[0]) + "]...")
-            node_cur.execute("UPDATE movies SET `id`=%s,`name`=%s,`year`=%s,`rank`=%s WHERE `id`=%s", (record[0], record[1], record[2], record[3], record[0]))
+            try:
+                node_cur.execute("UPDATE movies SET `id`=%s,`name`=%s,`year`=%s,`rank`=%s WHERE `id`=%s", (record[0], record[1], record[2], record[3], record[0]))
+            except:
+                log("UPDATE ERROR", "Could not execute UPDATE statement")
+                node_cur.execute("ROLLBACK")
+                print("> Update unsuccessful")
+                return
+
         elif exists[0][0] == 0:
             print("Adding new record: " + str(record) + "...")
-            node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
+
+            try:
+                node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
+            except:
+                log("UPDATE ERROR", "Could not execute INSERT statement")
+                node_cur.execute("ROLLBACK")
+                print("> Update unsuccessful")
+                return
+
+        node_cur.execute("COMMIT")
 
         i += 1
         print("Node %i: %i/%i" % (num, i, total))
@@ -118,6 +135,8 @@ def check_db_size():
 
 @app.route("/update_nodes")
 def update_nodes():
+    log("UPDATE START", "Start of update process")
+    flag_executed_query()
     print("> Update starting...")
     central_node = connector.connect(
         host=local_ip,
@@ -126,30 +145,42 @@ def update_nodes():
         password="root",
         db="mco2",
     )
-
     central_node_cur = central_node.cursor()
 
-    # Data for Node 2
-    print("> Fetching data for Node 2...")
-    central_node_cur.execute("SELECT * FROM movies WHERE year < 1980")
-    data_before1980 = central_node_cur.fetchall()
+    try:
+        # Data for Node 2
+        print("> Fetching data for Node 2...")
+        central_node_cur.execute("SELECT * FROM movies WHERE year < 1980")
+    except:
+        log("UPDATE ERROR", "Error occurred during update")
+        print("> Update unsuccessful")
+        return redirect(url_for("index"))
+    else:
+        data_before1980 = central_node_cur.fetchall()
 
-    # Data for Node 3
-    print("> Fetching data for Node 3...")
-    central_node_cur.execute("SELECT * FROM movies WHERE year >= 1980")
-    data_1980onwards = central_node_cur.fetchall()
+    try:
+        # Data for Node 3
+        print("> Fetching data for Node 3...")
+        central_node_cur.execute("SELECT * FROM movies WHERE year >= 1980")
+    except:
+        log("UPDATE ERROR", "Error occurred during update")
+        print("> Update unsuccessful")
+        return redirect(url_for("index"))
+    else:
+        data_1980onwards = central_node_cur.fetchall()
+        central_node_cur.close()
+        central_node.close()
 
-    central_node_cur.close()
-    central_node.close()
+        node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
+        node3_thread = threading.Thread(target=node_update, args=("35.247.162.62", data_1980onwards, 3))
 
-    node2_thread = threading.Thread(target=node_update, args=("34.142.187.114", data_before1980, 2))
-    node3_thread = threading.Thread(target=node_update, args=("35.247.162.62", data_1980onwards, 3))
+        node2_thread.start()
+        node3_thread.start()
+        node2_thread.join()
+        node3_thread.join()
 
-    node2_thread.start()
-    node3_thread.start()
-    node2_thread.join()
-    node3_thread.join()
-
+    log("UPDATE SUCCESSFUL", "End of update process")
+    flag_executed_query()
     return redirect(url_for('index'))
 
 
@@ -180,6 +211,7 @@ def send_query():
 
             if query[0:3].upper() == "SET":
                 log("CHECK_START", "Start of transaction block")
+                flag_executed_query()
                 log("SET", query)
             elif query[0:5].upper() == "START" or query[0:5].upper() == "BEGIN":
                 log("START", "Transaction start")
@@ -194,7 +226,7 @@ def send_query():
                 print("> Query unsuccessful")
                 return redirect(url_for("index"))
             else:
-                flag_executed()
+                flag_executed_query()
                 result = cur.fetchall()
 
             if len(result) != 0:
