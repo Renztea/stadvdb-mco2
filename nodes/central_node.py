@@ -7,6 +7,61 @@ from flask import url_for
 import pandas as pd
 import mysql.connector as connector
 import threading
+from datetime import datetime
+
+# VARIABLES
+# IP address specifically for this node
+local_ip = "34.142.158.246"
+
+app = Flask(__name__)
+local_conn = MySQL()
+
+app.config['MYSQL_HOST'] = local_ip
+app.config['MYSQL_PORT'] = 3306
+app.config['MYSQL_USER'] = "root"
+app.config['MYSQL_PASSWORD'] = "root"
+app.config['MYSQL_DB'] = "mco2"
+
+# Central Node
+local_conn.init_app(app)
+
+
+def log(event, desc):
+    log_conn = connector.connect(
+        host=local_ip,
+        port=3306,
+        user="root",
+        password="root",
+        db="mco2"
+    )
+    log_cur = log_conn.cursor()
+
+    log_cur.execute("INSERT INTO `logs`(`timestamp`, `event`, `desc`) VALUES (%s, %s, %s)", (str(datetime.today()), str(event), str(desc)))
+    log_conn.commit()
+
+    log_cur.close()
+    log_conn.close()
+    return
+
+
+def flag_executed():
+    log_conn = connector.connect(
+        host=local_ip,
+        port=3306,
+        user="root",
+        password="root",
+        db="mco2"
+    )
+    log_cur = log_conn.cursor()
+
+    log_cur.execute("SELECT id FROM `logs` ORDER BY `id` DESC LIMIT 1")
+    log_id = log_cur.fetchall()[0]
+
+    log_cur.execute("UPDATE `logs` SET `executed`=1 WHERE `id`=%s", log_id)
+    log_conn.commit()
+
+    log_cur.close()
+    log_conn.close()
 
 
 def node_update(hostname, data, num):
@@ -38,32 +93,10 @@ def node_update(hostname, data, num):
 
     node_conn.commit()
 
-    # for record in data:
-    #     print("INSERT INTO movies VALUES (" + str(record[0]) + ", '" + record[1] + "', " + str(record[2]) + ", " + str(record[3]) + ")")
-    #     node_cur.execute("INSERT INTO movies VALUES (%s, %s, %s, %s)", record)
-    #     node_conn.commit()
-
     node_cur.close()
     node_conn.close()
     print("> Node %i done updating." % num)
     return
-
-
-# VARIABLES
-# IP address specifically for this node
-local_ip = "34.142.158.246"
-
-app = Flask(__name__)
-local_conn = MySQL()
-
-app.config['MYSQL_HOST'] = local_ip
-app.config['MYSQL_PORT'] = 3306
-app.config['MYSQL_USER'] = "root"
-app.config['MYSQL_PASSWORD'] = "root"
-app.config['MYSQL_DB'] = "mco2"
-
-# Central Node
-local_conn.init_app(app)
 
 
 @app.route("/")
@@ -122,6 +155,10 @@ def update_nodes():
 
 @app.route("/send_query", methods=['POST'])
 def send_query():
+    # refresh result.html everytime the user sends a new query
+    fp = open("templates/result.html", "w")
+    fp.close()
+
     update_flag = False
     cur = local_conn.connection.cursor()
 
@@ -130,22 +167,41 @@ def send_query():
 
     for query in data:
         if query != "":
+            query = query.strip()
             print("> " + query)
-
-            if (query[0:6].upper() != "SELECT") and not update_flag:
+            if (
+                query[0:6].upper() != "SELECT" and
+                query[0:3].upper() != "SET" and
+                query[0:5].upper() != "START" and
+                query[0:6].upper() != "COMMIT" and
+                query[0:5].upper() != "BEGIN"
+            ) and update_flag:
                 update_flag = True
 
-            cur.execute(query)
-            result = cur.fetchall()
+            if query[0:3].upper() == "SET":
+                log("CHECK_START", "Start of transaction block")
+                log("SET", query)
+            elif query[0:5].upper() == "START" or query[0:5].upper() == "BEGIN":
+                log("START", "Transaction start")
+            elif query[0:6].upper() == "COMMIT":
+                log("COMMIT", "Transaction finished")
+            else:
+                log("QUERY", query)
 
-            # result.html clears for each SQL statement sent
-            fp = open("templates/result.html", "w")
+            try:
+                cur.execute(query)
+            except:
+                print("> Query unsuccessful")
+                return redirect(url_for("index"))
+            else:
+                flag_executed()
+                result = cur.fetchall()
 
-            if len(result) > 0:
+            if len(result) != 0:
+                fp = open("templates/result.html", "w")
                 result_html = pd.DataFrame(result).to_html()
                 fp.write(str(result_html))
-
-            fp.close()
+                fp.close()
 
     local_conn.connection.commit()
     cur.close()
@@ -160,3 +216,8 @@ def send_query():
 @app.route("/see_results")
 def see_results():
     return render_template("result.html")
+
+
+if __name__ == "__main__":
+    app.run(host='127.0.0.1', port=5000, debug=True)
+
